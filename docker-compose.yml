@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+
+  wiremock:
+    image: wiremock/wiremock:2.34.0
+    container_name: lagom_wiremock
+    ports:
+      - "10000:10000"
+    command: "--verbose --port 10000"
+    volumes:
+      - ./wiremock:/home/wiremock

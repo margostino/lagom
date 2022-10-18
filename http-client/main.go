@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/margostino/lagom/common"
+	"github.com/margostino/lagom/configuration"
 	"github.com/margostino/lagom/http"
-	"io"
+	"github.com/margostino/lagom/io"
 	"log"
 	"math/rand"
 	"sync"
@@ -14,52 +15,24 @@ import (
 var wg *sync.WaitGroup
 
 func main() {
-	var clients = common.GetConfig("./config.yml")
-	delta := getDelta(clients)
-	wg = common.WaitGroup(delta)
-	for _, client := range clients {
-		if !client.Enabled {
-			log.Println(fmt.Sprintf("Client %s is not enabled", client.Url))
-			wg.Add(-client.CallsNumber)
-		} else if client.Method == http.POST {
-			data, err := io.OpenFile(client.RequestFile)
-			if err != nil {
-				log.Println(fmt.Sprintf("Cannot open file %s", client.RequestFile), err)
-				wg.Add(-client.CallsNumber)
-			} else {
-				go call(client, data)
-			}
+	var config = configuration.GetConfig("./config.yml")
+	if !config.Enabled {
+		log.Println(fmt.Sprintf("Client %s is not enabled", config.Http.Url))
+	} else if config.Http.Method == http.POST {
+		requestFile := config.Http.RequestFile
+		data, err := io.OpenFile(requestFile)
+		if err != nil {
+			log.Println(fmt.Sprintf("Cannot open file %s", requestFile), err)
 		} else {
-			go call(client, nil)
+			go call(config, data)
 		}
+	} else {
+		go call(config, nil)
 	}
 	wg.Wait()
 }
 
-func getDelta(clients []*common.Client) int {
-	var delta = 0
-	for _, client := range clients {
-		delta += client.CallsNumber
-	}
-	return delta
-}
-
-func progressiveCall(config *common.Client, data []byte) {
-	calls := 0
-	for i := 0; i < config.CallsNumber; i++ {
-		calls += i + 1
-		if calls > config.CallsNumber {
-			break
-		}
-		for j := 0; j < calls; j++ {
-			go execute(i, config, data)
-			wait(50)
-		}
-		wait(config.MaxStepTime)
-	}
-}
-
-func call(config *common.Client, data []byte) {
+func call(config *configuration.Configuration, data []byte) {
 	for i := 0; i < config.CallsNumber; i++ {
 		go execute(i, config, data)
 		wait(config.MaxStepTime + 500)
