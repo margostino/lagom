@@ -45,6 +45,8 @@ docker_validate(){
 }
 
 docker_compose_up() {
+    stop_and_clean_docker_world
+    prepare_config_files
     COMPOSE_HTTP_TIMEOUT=360 USERID=$(id -u):$(id -g) docker-compose -f docker-compose.yml --project-name ${DOCKER_PROJECT_NAME} up -d --build "$@"
     docker_wait_until_healthy_or_none 0 180
     docker ps -a
@@ -70,6 +72,12 @@ remove_container_if_exists() {
         #docker stop ${name}
         docker rm -f /${name}
     fi
+}
+
+prepare_config_files() {
+    DOCKER_HOST=$(ifconfig | grep -E "([0-9]{1,3}\.){3}[0-9]{1,3}" | grep -v 127.0.0.1 | awk '{ print $2 }' | cut -f2 -d: | head -n1)
+    sed -e "s/\${IP}/${DOCKER_HOST}/g" ./docker/prometheus/prometheus_template.yml > ./docker/prometheus/prometheus.yml
+    sed -e "s/\${IP}/${DOCKER_HOST}/g" ./docker/grafana/datasources/datasources_template.yaml > ./docker/grafana/datasources/datasources.yaml
 }
 
 COMMAND=$1

@@ -1,11 +1,9 @@
-package http
+package http_client
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/margostino/lagom/common"
-	"io/ioutil"
-	"log"
+	"github.com/margostino/lagom/configuration"
 	"net/http"
 	"os"
 	"time"
@@ -22,7 +20,7 @@ func GetClient() *http.Client {
 	}
 }
 
-func GetRequest(config *common.Client, payload *bytes.Buffer) *http.Request {
+func GetRequest(config *configuration.Http, payload *bytes.Buffer) *http.Request {
 	request, err := http.NewRequest(config.Method, config.Url, payload)
 	if err != nil {
 		fmt.Print(err.Error())
@@ -45,15 +43,4 @@ func Call(client *http.Client, request *http.Request) *http.Response {
 		//log.Fatal(error)
 	}
 	return response
-}
-
-func Print(response *http.Response) {
-	if response.StatusCode == http.StatusOK {
-		bodyBytes, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-		bodyString := string(bodyBytes)
-		log.Println(bodyString)
-	}
 }

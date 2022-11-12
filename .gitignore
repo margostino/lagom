@@ -21,3 +21,6 @@ data/
 config.yml
 
 .DS_Store
+
+docker/prometheus/prometheus.yml
+docker/grafana/datasources/datasources.yaml
