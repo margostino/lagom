@@ -1,10 +1,9 @@
-package loadgen
+package loader
 
 import (
 	"bytes"
 	"fmt"
 	"github.com/margostino/lagom/configuration"
-	"log"
 	"net/http"
 	"os"
 )
@@ -28,12 +27,4 @@ func GetRequest(config *configuration.Http, payload *bytes.Buffer) *http.Request
 	}
 
 	return request
-}
-
-func Call(client *http.Client, request *http.Request) (*http.Response, error) {
-	response, err := client.Do(request)
-	if err != nil {
-		log.Println(err.Error())
-	}
-	return response, err
 }
