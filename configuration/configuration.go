@@ -9,16 +9,17 @@ import (
 )
 
 type Params struct {
-	InitialLoad             int           `yaml:"initial_load"`
-	StepLoad                int           `yaml:"step_load"`
-	StepTime                time.Duration `yaml:"step_time"`
-	SpawnRate               int           `yaml:"spawn_rate"`
-	MaxLoad                 int           `yaml:"max_load"`
-	RunTime                 time.Duration `yaml:"run_time"`
-	SpikeMultiplierIncrease int           `yaml:"spike_multiplier_increase"`
-	MaxSpikeMultiplier      int           `yaml:"max_spike_multiplier"`
-	SpikeDuration           time.Duration `yaml:"spike_duration"`
-	SpikeCooldownDuration   time.Duration `yaml:"spike_cooldown_duration"`
+	InitialLoad             int           `yaml:"initial_load" json:"initial_load"`
+	StepLoad                int           `yaml:"step_load" json:"step_load"`
+	StepTime                time.Duration `yaml:"step_time" json:"step_time"`
+	BufferTime              int           `yaml:"buffer_time" json:"buffer_time"`
+	SpawnRate               int           `yaml:"spawn_rate" json:"spawn_rate"`
+	MaxLoad                 int           `yaml:"max_load" json:"max_load"`
+	RunTime                 time.Duration `yaml:"run_time" json:"run_time"`
+	SpikeMultiplierIncrease int           `yaml:"spike_multiplier_increase" json:"spike_multiplier_increase"`
+	MaxSpikeMultiplier      int           `yaml:"max_spike_multiplier" json:"max_spike_multiplier"`
+	SpikeDuration           time.Duration `yaml:"spike_duration" json:"spike_duration"`
+	SpikeCooldownDuration   time.Duration `yaml:"spike_cooldown_duration" json:"spike_cooldown_duration"`
 }
 
 type Http struct {

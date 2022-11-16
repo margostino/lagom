@@ -1,24 +1,18 @@
-package http_client
+package loadgen
 
 import (
 	"bytes"
 	"fmt"
 	"github.com/margostino/lagom/configuration"
+	"log"
 	"net/http"
 	"os"
-	"time"
 )
 
 const (
 	POST = "POST"
 	GET  = "GET"
 )
-
-func GetClient() *http.Client {
-	return &http.Client{
-		Timeout: time.Second * 10,
-	}
-}
 
 func GetRequest(config *configuration.Http, payload *bytes.Buffer) *http.Request {
 	request, err := http.NewRequest(config.Method, config.Url, payload)
@@ -36,11 +30,10 @@ func GetRequest(config *configuration.Http, payload *bytes.Buffer) *http.Request
 	return request
 }
 
-func Call(client *http.Client, request *http.Request) *http.Response {
-	response, error := client.Do(request)
-	if error != nil {
-		fmt.Println(error.Error())
-		//log.Fatal(error)
+func Call(client *http.Client, request *http.Request) (*http.Response, error) {
+	response, err := client.Do(request)
+	if err != nil {
+		log.Println(err.Error())
 	}
-	return response
+	return response, err
 }
