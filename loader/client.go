@@ -3,17 +3,50 @@ package loader
 import (
 	"bytes"
 	"fmt"
+	"github.com/margostino/lagom/common"
 	"github.com/margostino/lagom/configuration"
+	"github.com/margostino/lagom/io"
+	"github.com/margostino/lagom/monitoring"
+	"golang.org/x/time/rate"
+	"log"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 )
 
-const (
-	POST = "POST"
-	GET  = "GET"
-)
+type LoadGen struct {
+	waitGroup     *sync.WaitGroup
+	httpConfig    *configuration.Http
+	perfConfig    *configuration.Params
+	updatedConfig *configuration.Params
+	ConfigChannel chan *configuration.Params
+	httpClient    *http.Client
+	request       *http.Request
+}
 
-func GetRequest(config *configuration.Http, payload *bytes.Buffer) *http.Request {
+func NewLoadGen(config *configuration.Configuration) *LoadGen {
+	requestData := getPayload(config.Http.RequestFile)
+	payload := io.ReadAll(requestData)
+
+	loadgen := &LoadGen{
+		waitGroup:     common.WaitGroup(1),
+		httpConfig:    config.Http,
+		perfConfig:    config.Params,
+		ConfigChannel: make(chan *configuration.Params),
+		updatedConfig: nil,
+		httpClient: &http.Client{
+			Timeout: time.Millisecond * 300,
+		},
+		request: buildRequest(config.Http, payload),
+	}
+
+	go loadgen.listenConfig()
+
+	return loadgen
+}
+
+func buildRequest(config *configuration.Http, payload *bytes.Buffer) *http.Request {
 	request, err := http.NewRequest(config.Method, config.Url, payload)
 	if err != nil {
 		fmt.Print(err.Error())
@@ -27,4 +60,99 @@ func GetRequest(config *configuration.Http, payload *bytes.Buffer) *http.Request
 	}
 
 	return request
+}
+
+func buildRateLimiter(rps int) *rate.Limiter {
+	return rate.NewLimiter(rate.Limit(rps), rps)
+}
+
+func getPayload(requestFile string) []byte {
+	var payload []byte
+	var err error
+
+	if requestFile != "" {
+		payload, err = io.OpenFile(requestFile)
+		if err != nil {
+			log.Println(fmt.Sprintf("Cannot open file %s", requestFile), err)
+			os.Exit(1)
+		}
+	} else {
+		payload = nil
+	}
+
+	return payload
+}
+
+func (l *LoadGen) call(requestsCount int, partialRate int, runtime float64) {
+	start := time.Now()
+	response, err := l.httpClient.Do(l.request)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	if err != nil {
+		log.Printf("failure call (request #%d): %s\n", requestsCount, err.Error())
+	}
+
+	if response != nil {
+		end := time.Now()
+		log.Printf("URL %s Elapsed time %s with status %s (rate: %d, runtime: %.2f, total requests: %d)\n", l.httpConfig.Url, end.Sub(start).String(), response.Status, partialRate, runtime, requestsCount)
+		//if response.StatusCode == http.StatusOK {
+		//	bodyBytes, err := ioutil.ReadAll(response.Body)
+		//	if err != nil {
+		//		log.Fatal(err)
+		//	}
+		//	bodyString := string(bodyBytes)
+		//	log.Println(bodyString)
+		//}
+	}
+}
+
+func (l *LoadGen) listenConfig() {
+	l.updatedConfig = <-l.ConfigChannel
+}
+
+func (l *LoadGen) Run() {
+	var spawnRate = l.perfConfig.SpawnRate
+	var requestsCount, loadStep = 0, 1
+
+	var limiter = buildRateLimiter(spawnRate)
+	var totalRuntime = l.perfConfig.RunTime.Seconds()
+
+	for start := time.Now(); time.Since(start).Seconds() <= totalRuntime; {
+		if l.updatedConfig != nil && l.updatedConfig.SpawnRate != 0 {
+			spawnRate = l.updatedConfig.SpawnRate
+			limiter.SetLimit(rate.Limit(spawnRate))
+			limiter.SetBurst(spawnRate)
+		} else {
+			spawnRate = l.perfConfig.SpawnRate
+		}
+
+		reservation := limiter.ReserveN(time.Now(), 1)
+		if !reservation.OK() {
+			// Not allowed to act! Did you remember to set lim.burst to be > 0 ?
+		} else {
+			delay := reservation.Delay()
+			time.Sleep(reservation.Delay())
+			monitoring.Report()
+			requestsCount += 1
+			runtime := time.Since(start).Seconds() + delay.Seconds()
+			partialRate := int(float64(requestsCount) / runtime)
+
+			if requestsCount == 500 {
+				//println("kdnfdn")
+			}
+			if partialRate == spawnRate {
+				//println(partialRate)
+				//println(loadStep)
+				loadStep += 1
+				//spawnRate *= loadStep
+				//limiter.SetLimit(rate.Limit(spawnRate))
+				//limiter.SetBurst(spawnRate)
+			}
+
+			go l.call(requestsCount, partialRate, runtime)
+		}
+
+	}
+
 }

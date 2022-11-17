@@ -14,13 +14,16 @@ func main() {
 	var config = configuration.GetConfig("./config.yml")
 	loadgen := loader.NewLoadGen(config)
 	go loadgen.Run()
-	buildRouter()
+	buildRouter(loadgen.ConfigChannel)
 }
 
-func buildRouter() {
+func buildRouter(configChannel chan *configuration.Params) {
+	apiHandler := api.NewApiHandler(configChannel)
+
 	router := mux.NewRouter()
-	router.Path("/monitoring").Handler(promhttp.Handler()).Methods("GET")
-	router.HandleFunc("/configuration", api.UpdateConfiguration).Methods("POST")
+	router.Path("/metrics").Handler(promhttp.Handler()).Methods("GET")
+	router.HandleFunc("/configuration", apiHandler.UpdateConfiguration).Methods("POST")
+
 	err := http.ListenAndServe(":9000", router)
 	log.Fatal(err)
 }
