@@ -40,8 +40,23 @@ docker_validate(){
       exit 1
   fi
   echo "docker_validate success"
-  create_grafana_dashboards
-  exit 0
+}
+
+grafana_api_validate() {
+  successResponse="HTTP/1.1 200 OK"
+  for run in {1..5}; do
+    statusCode=$(curl -Is http://localhost:3000/api/health | head -n 1)
+    echo "Grafana API status code: $statusCode"
+    if [[ "$statusCode" == *"$successResponse"* ]]; then
+      create_grafana_dashboards
+      echo "grafana_api_validate success"
+      exit 0
+    fi
+
+    sleep 1
+  done
+  echo "grafana_api_validate fail"
+  exit 1
 }
 
 docker_compose_up() {
@@ -55,6 +70,7 @@ docker_compose_up() {
         docker logs "${container}"
     done
     docker_validate
+    grafana_api_validate
 }
 
 stop_and_clean_docker_world() {
@@ -74,8 +90,7 @@ remove_container_if_exists() {
 }
 
 create_grafana_dashboards() {
-  sleep 20
-  curl -v http://localhost:3000/api/dashboards/db -u admin:admin -H "Content-Type: application/json" -H "Accept: application/json" -d @../docker/grafana/dashboards/demo.json
+  curl -v http://localhost:3000/api/dashboards/db -u admin:admin -H "Content-Type: application/json" -H "Accept: application/json" -d @./docker/grafana/dashboards/demo.json
 }
 
 prepare_config_files() {
