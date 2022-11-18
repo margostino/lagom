@@ -27,7 +27,6 @@ docker_wait_until_healthy_or_none(){
     docker_wait_until_healthy_or_none $((wait+10)) $total_wait
   done
   echo "docker_wait success"
-  exit 0
 }
 
 docker_validate(){
@@ -41,6 +40,7 @@ docker_validate(){
       exit 1
   fi
   echo "docker_validate success"
+  create_grafana_dashboards
   exit 0
 }
 
@@ -50,7 +50,6 @@ docker_compose_up() {
     COMPOSE_HTTP_TIMEOUT=360 USERID=$(id -u):$(id -g) docker-compose -f docker-compose.yml --project-name ${DOCKER_PROJECT_NAME} up -d --build "$@"
     docker_wait_until_healthy_or_none 0 180
     docker ps -a
-    echo "---output of stopped containers---"
     for container in $(docker ps --filter status=exited -q); do
         echo "${container}"
         docker logs "${container}"
@@ -72,6 +71,11 @@ remove_container_if_exists() {
         #docker stop ${name}
         docker rm -f /${name}
     fi
+}
+
+create_grafana_dashboards() {
+  sleep 20
+  curl -v http://localhost:3000/api/dashboards/db -u admin:admin -H "Content-Type: application/json" -H "Accept: application/json" -d @../docker/grafana/dashboards/demo.json
 }
 
 prepare_config_files() {

@@ -137,7 +137,7 @@ func (l *LoadGen) Run() {
 			requestsCount += 1
 			runtime := time.Since(start).Seconds() + delay.Seconds()
 			partialRate := int(float64(requestsCount) / runtime)
-
+			log.Printf("rate %d raw rate %.34f\n", partialRate, float64(requestsCount)/runtime)
 			if requestsCount == 500 {
 				//println("kdnfdn")
 			}
