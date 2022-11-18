@@ -83,7 +83,7 @@ func getPayload(requestFile string) []byte {
 	return payload
 }
 
-func (l *LoadGen) call(requestsCount int, partialRate int, runtime float64) {
+func (l *LoadGen) call(requestsCount int, partialRate int, runtime float64, spawnRate int) {
 	start := time.Now()
 	response, err := l.httpClient.Do(l.request)
 	if err != nil {
@@ -95,7 +95,7 @@ func (l *LoadGen) call(requestsCount int, partialRate int, runtime float64) {
 
 	if response != nil {
 		end := time.Now()
-		log.Printf("URL %s Elapsed time %s with status %s (rate: %d, runtime: %.2f, total requests: %d)\n", l.httpConfig.Url, end.Sub(start).String(), response.Status, partialRate, runtime, requestsCount)
+		log.Printf("URL %s Elapsed time %s with status %s (spawn rate: %d, calculated rate: %d, runtime: %.2f, total requests: %d)\n", l.httpConfig.Url, end.Sub(start).String(), response.Status, spawnRate, partialRate, runtime, requestsCount)
 		//if response.StatusCode == http.StatusOK {
 		//	bodyBytes, err := ioutil.ReadAll(response.Body)
 		//	if err != nil {
@@ -112,8 +112,9 @@ func (l *LoadGen) listenConfig() {
 }
 
 func (l *LoadGen) Run() {
+	var stepStart = time.Now()
 	var spawnRate = l.perfConfig.SpawnRate
-	var requestsCount, loadStep = 0, 1
+	var requestsCount, loadStep = 0, l.perfConfig.StepLoad
 
 	var limiter = buildRateLimiter(spawnRate)
 	var totalRuntime = l.perfConfig.RunTime.Seconds()
@@ -131,26 +132,23 @@ func (l *LoadGen) Run() {
 		if !reservation.OK() {
 			// Not allowed to act! Did you remember to set lim.burst to be > 0 ?
 		} else {
-			delay := reservation.Delay()
 			time.Sleep(reservation.Delay())
+			// only report if call success
 			monitoring.Report()
 			requestsCount += 1
-			runtime := time.Since(start).Seconds() + delay.Seconds()
+			runtime := time.Since(start).Seconds()
+			stepRuntime := time.Since(stepStart)
 			partialRate := int(float64(requestsCount) / runtime)
-			log.Printf("rate %d raw rate %.34f\n", partialRate, float64(requestsCount)/runtime)
-			if requestsCount == 500 {
-				//println("kdnfdn")
-			}
-			if partialRate == spawnRate {
-				//println(partialRate)
-				//println(loadStep)
+
+			if stepRuntime >= l.perfConfig.StepTime && partialRate >= spawnRate {
+				stepStart = time.Now()
 				loadStep += 1
-				//spawnRate *= loadStep
-				//limiter.SetLimit(rate.Limit(spawnRate))
-				//limiter.SetBurst(spawnRate)
+				spawnRate *= loadStep
+				limiter.SetLimit(rate.Limit(spawnRate))
+				limiter.SetBurst(spawnRate)
 			}
 
-			go l.call(requestsCount, partialRate, runtime)
+			go l.call(requestsCount, partialRate, runtime, spawnRate)
 		}
 
 	}
