@@ -83,7 +83,7 @@ func getPayload(requestFile string) []byte {
 	return payload
 }
 
-func (l *LoadGen) call(requestsCount int, partialRate int, runtime float64, spawnRate int) {
+func (l *LoadGen) call(requestsCount int, calculatedRate float64, runtime float64, stepLoad int) {
 	start := time.Now()
 	response, err := l.httpClient.Do(l.request)
 	if err != nil {
@@ -95,7 +95,14 @@ func (l *LoadGen) call(requestsCount int, partialRate int, runtime float64, spaw
 
 	if response != nil {
 		end := time.Now()
-		log.Printf("URL %s Elapsed time %s with status %s (spawn rate: %d, calculated rate: %d, runtime: %.2f, total requests: %d)\n", l.httpConfig.Url, end.Sub(start).String(), response.Status, spawnRate, partialRate, runtime, requestsCount)
+		log.Printf("URL %s Elapsed time %dms with status %s (step load [rps]: %d, calculated rate [rps]: %.2f, runtime (sec): %.2f, total requests: %d)\n",
+			l.httpConfig.Url,
+			end.Sub(start).Milliseconds(),
+			response.Status,
+			stepLoad,
+			calculatedRate,
+			runtime,
+			requestsCount)
 		//if response.StatusCode == http.StatusOK {
 		//	bodyBytes, err := ioutil.ReadAll(response.Body)
 		//	if err != nil {
@@ -108,24 +115,25 @@ func (l *LoadGen) call(requestsCount int, partialRate int, runtime float64, spaw
 }
 
 func (l *LoadGen) listenConfig() {
-	l.updatedConfig = <-l.ConfigChannel
+	config := <-l.ConfigChannel
+	if config.StepLoad != l.perfConfig.StepLoad {
+		l.perfConfig.StepLoad = config.StepLoad
+	}
 }
 
 func (l *LoadGen) Run() {
 	var stepStart = time.Now()
-	var spawnRate = l.perfConfig.SpawnRate
-	var requestsCount, loadStep = 0, l.perfConfig.StepLoad
+	var requestsCount = 0
+	var stepLoad = l.perfConfig.StepLoad
 
-	var limiter = buildRateLimiter(spawnRate)
-	var totalRuntime = l.perfConfig.RunTime.Seconds()
+	var limiter = buildRateLimiter(stepLoad)
+	var totalRuntime = l.perfConfig.RunTime
 
-	for start := time.Now(); time.Since(start).Seconds() <= totalRuntime; {
-		if l.updatedConfig != nil && l.updatedConfig.SpawnRate != 0 {
-			spawnRate = l.updatedConfig.SpawnRate
-			limiter.SetLimit(rate.Limit(spawnRate))
-			limiter.SetBurst(spawnRate)
-		} else {
-			spawnRate = l.perfConfig.SpawnRate
+	for start := time.Now(); time.Since(start) <= totalRuntime; {
+		if stepLoad != l.perfConfig.StepLoad {
+			stepLoad = l.perfConfig.StepLoad
+			limiter.SetLimit(rate.Limit(stepLoad))
+			limiter.SetBurst(stepLoad)
 		}
 
 		reservation := limiter.ReserveN(time.Now(), 1)
@@ -138,17 +146,18 @@ func (l *LoadGen) Run() {
 			requestsCount += 1
 			runtime := time.Since(start).Seconds()
 			stepRuntime := time.Since(stepStart)
-			partialRate := int(float64(requestsCount) / runtime)
+			calculatedRate := float64(requestsCount) / runtime
 
-			if stepRuntime >= l.perfConfig.StepTime && partialRate >= spawnRate {
+			if stepRuntime >= l.perfConfig.StepTime && calculatedRate >= float64(stepLoad) {
 				stepStart = time.Now()
-				loadStep += 1
-				spawnRate *= loadStep
-				limiter.SetLimit(rate.Limit(spawnRate))
-				limiter.SetBurst(spawnRate)
+				//stepLoad += 1
+				stepLoad *= 2
+				l.perfConfig.StepLoad = stepLoad
+				limiter.SetLimit(rate.Limit(stepLoad))
+				limiter.SetBurst(stepLoad)
 			}
 
-			go l.call(requestsCount, partialRate, runtime, spawnRate)
+			go l.call(requestsCount, calculatedRate, runtime, stepLoad)
 		}
 
 	}

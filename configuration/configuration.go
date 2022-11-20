@@ -12,7 +12,6 @@ type Params struct {
 	InitialLoad             int           `yaml:"initial_load" json:"initial_load"`
 	StepLoad                int           `yaml:"step_load" json:"step_load"`
 	StepTime                time.Duration `yaml:"step_time" json:"step_time"`
-	BufferTime              int           `yaml:"buffer_time" json:"buffer_time"`
 	SpawnRate               int           `yaml:"spawn_rate" json:"spawn_rate"`
 	MaxLoad                 int           `yaml:"max_load" json:"max_load"`
 	RunTime                 time.Duration `yaml:"run_time" json:"run_time"`
